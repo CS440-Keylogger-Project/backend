@@ -1,0 +1,74 @@
+version: '3.1'
+
+services:
+  # mongo keyfile generator
+  keyfile-generator:
+    container_name: keyfile-generator
+    image: alpine:latest
+    restart: on-failure
+    command: sh -c 'apk --no-cache add openssl && openssl rand -base64 741 > keyfile/key && chmod 400 keyfile/key && chown 999:999 keyfile/key && cat keyfile/key'
+    volumes:
+      - keyfile:/keyfile
+
+  # standalone mongodb container as replica set
+  mongo:
+    container_name: mongo
+    image: mongo
+    restart: always
+    env_file: ./.env
+    ports:
+      - 27017:27017
+    volumes:
+      - keyfile:/keyfile
+    depends_on:
+      - keyfile-generator
+    command: 'mongod --auth --keyFile /keyfile/key --replSet replica-set'
+
+  # Initialization server
+  # To run rs.initiate() command 
+  mongo-init:
+    container_name: mongo-init
+    image: mongo
+    restart: on-failure:5
+    env_file: ./.env
+    depends_on:
+      - mongo
+    command: >
+      bash -c '
+        sleep 10 &&
+        mongosh \
+          --host mongo:27017 \
+          --username ${MONGO_INITDB_ROOT_USERNAME} \
+          --password ${MONGO_INITDB_ROOT_PASSWORD} \
+          --eval "rs.initiate()"'
+
+  # mongo express container - UI for mongodb
+  mongo-express:
+    container_name: mongo-express
+    image: mongo-express
+    restart: always
+    env_file: ./.env
+    depends_on:
+      - mongo
+    ports:
+      - 8085:8081
+
+  # go-gin-backend container
+  go-gin-backend:
+    container_name: go-gin-backend
+    image: go-gin-backend:latest
+    build:
+      context: ./go-gin-backend
+      dockerfile: ./docker/Dockerfile.dev
+    env_file: ./go-gin-backend/.env
+    restart: always
+    depends_on:
+      - mongo
+    volumes:
+      - ./go-gin-backend:/app
+    ports:
+      - 8080:8080
+
+
+volumes:
+  keyfile:
