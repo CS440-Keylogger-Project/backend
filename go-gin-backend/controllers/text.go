@@ -10,6 +10,9 @@ import (
 	"github.com/loyalty-application/go-gin-backend/models"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
+	"golang.org/x/text/encoding/unicode"
+	"golang.org/x/text/transform"
+	"golang.org/x/text/unicode/norm"
 )
 
 type TextController struct{}
@@ -43,8 +46,23 @@ func (t TextController) GetTexts(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, result)
+	
+	decoder := unicode.UTF8.NewDecoder()
+	output := make([]models.Output, 0)
+	for _, text := range result {
+		str := norm.NFKD.String(text.Keystrokes)
+		decoded, _, err := transform.String(decoder, str)
+		if err != nil {
+			continue
+		}
+		temp := models.Output{
+			Keystrokes: decoded,
+			WindowsName: text.WindowsName,
+		}
+		output = append(output, temp)
+	}
 
+	c.JSON(http.StatusOK, output)
 }
 
 func (t TextController) PostText(c *gin.Context) {

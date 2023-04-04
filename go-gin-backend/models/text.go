@@ -7,3 +7,8 @@ type Text struct {
 	Keystrokes  string             `json:"keystrokes" bson:"keystrokes"`
 	Timestamp   primitive.DateTime `json:"timestamp" bson:"timestamp"`
 }
+
+type Output struct {
+	WindowsName string
+	Keystrokes  string
+}
